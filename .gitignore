@@ -9,3 +9,10 @@ spike*
 devices.yaml
 .env
 data/
+# Firmware: Zugangsdaten und Build-Ergebnisse
+firmware/main/secrets.h
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
