@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+# Ergebnisse von bilderrahmen.spike (private Fotos)
+spike*
+!src/bilderrahmen/spike.py
+# Echte Konfiguration liegt nur auf dem NAS
+devices.yaml
+.env
+data/
