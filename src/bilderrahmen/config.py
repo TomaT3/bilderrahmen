@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import time
 from pathlib import Path
 from typing import Mapping
@@ -19,16 +19,14 @@ class Device:
     id: str
     album: str
     password: str
-    orientation: str = "portrait"  # portrait (1200x1600) oder landscape (Rahmen hängt quer)
+    orientation: str = "landscape"  # landscape = Rahmen steht/hängt quer (nativ), portrait = hochkant
     wake: time = time(6, 0)
-    settings: Mapping[str, object] = field(default_factory=dict)  # zusätzliche Felder für settings.json
 
 
 @dataclass(frozen=True)
 class Config:
     devices: Mapping[str, Device]
     timezone: str = "Europe/Berlin"
-    public_url: str = ""  # z. B. https://rahmen.example.de, für downloadUrl in settings.json
 
 
 def password_env_name(device_id: str) -> str:
@@ -45,7 +43,7 @@ def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
             raise ValueError(f"Ungültige Geräte-ID {dev_id!r} (erlaubt: a-z, 0-9, -)")
         if dev_id in devices:
             raise ValueError(f"Geräte-ID {dev_id!r} doppelt")
-        orientation = item.get("orientation", "portrait")
+        orientation = item.get("orientation", "landscape")
         if orientation not in ("portrait", "landscape"):
             raise ValueError(f"{dev_id}: orientation muss portrait oder landscape sein")
         env_name = password_env_name(dev_id)
@@ -59,10 +57,8 @@ def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
             password=password,
             orientation=orientation,
             wake=time(int(hh), int(mm)),
-            settings=dict(item.get("settings", {})),
         )
     return Config(
         devices=devices,
         timezone=str(raw.get("timezone", "Europe/Berlin")),
-        public_url=str(env.get("PUBLIC_URL", raw.get("public_url", ""))).rstrip("/"),
     )

@@ -20,6 +20,25 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: pytest -q
 
+  firmware:
+    # Baut die Rahmen-Firmware mit den Platzhaltern aus secrets.example.h; geflasht wird lokal mit eigener secrets.h
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: cp firmware/main/secrets.example.h firmware/main/secrets.h
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.2
+          target: esp32s3
+          path: firmware
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            firmware/build/bilderrahmen-firmware.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+
   image:
     # Nur bei einem Versions-Tag (v1.2.3) wird ein Image veröffentlicht; die Compose-Datei pinnt die Version
     if: startsWith(github.ref, 'refs/tags/v')

@@ -1,9 +1,8 @@
 import io
-import struct
 
 from PIL import Image
 
-from bilderrahmen.render import PANEL_H, PANEL_W, USED_INDICES, render
+from bilderrahmen.render import PANEL_H, PANEL_W, RAW_SIZE, USED_INDICES, pack_raw4, preview_png, render
 
 
 def photo(w, h, color=(200, 120, 40), exif_orientation=None, marker=False):
@@ -22,64 +21,76 @@ def photo(w, h, color=(200, 120, 40), exif_orientation=None, marker=False):
     return buf.getvalue()
 
 
-def parse_bmp(data):
-    magic, size, _, _, offset = struct.unpack_from("<2sIHHI", data, 0)
-    hdr = struct.unpack_from("<IiiHHIIiiII", data, 14)
-    return magic, size, offset, hdr
-
-
-def bmp_indices(data):
-    _, _, offset, hdr = parse_bmp(data)
-    w, h = hdr[1], hdr[2]
-    row_bytes = ((w * 4 + 31) // 32) * 4
+def raw_rows(data):
+    """Raw-Puffer -> Zeilen mit Controller-Codes, von oben nach unten."""
+    assert len(data) == RAW_SIZE
     rows = []
-    for r in range(h):
-        raw = data[offset + r * row_bytes : offset + (r + 1) * row_bytes]
+    for r in range(PANEL_H):
+        raw = data[r * PANEL_W // 2 : (r + 1) * PANEL_W // 2]
         px = []
-        for b in raw[: w // 2]:
+        for b in raw:
             px += [b >> 4, b & 0x0F]
         rows.append(px)
-    rows.reverse()  # bottom-up -> top-down
     return rows
 
 
-def test_bmp_header_is_4bit_panel_size():
-    data = render(photo(4000, 3000))
-    magic, size, offset, hdr = parse_bmp(data)
-    assert magic == b"BM"
-    assert size == len(data)
-    assert hdr[1:5] == (PANEL_W, PANEL_H, 1, 4)
-    assert hdr[5] == 0  # unkomprimiert
-    assert offset == 14 + 40 + 16 * 4
-    assert len(data) == offset + PANEL_W // 2 * PANEL_H
+def test_panel_is_800x480_landscape():
+    assert (PANEL_W, PANEL_H) == (800, 480)
+    assert RAW_SIZE == 192_000
+
+
+def test_raw_is_exact_panel_buffer():
+    assert len(render(photo(4000, 3000))) == RAW_SIZE
+
+
+def test_pack_raw4_high_nibble_is_left_pixel_top_row_first():
+    indices = [0] * (PANEL_W * PANEL_H)
+    indices[0], indices[1] = 2, 3  # erste Zeile, Pixel 0 und 1
+    indices[PANEL_W] = 5  # zweite Zeile, Pixel 0
+    data = pack_raw4(indices)
+    assert data[0] == 0x23
+    assert data[PANEL_W // 2] == 0x50
 
 
 def test_only_panel_colors_used():
-    rows = bmp_indices(render(photo(3000, 4000, (90, 160, 210))))
+    rows = raw_rows(render(photo(4000, 3000, (90, 160, 210))))
     used = {p for row in rows for p in row}
     assert used <= set(USED_INDICES)
     assert len(used) >= 2  # Mischfarbe -> Dithering mit mehreren Farben
 
 
-def test_landscape_device_rotates_landscape_photo():
-    # Querformat-Foto, oben schwarz / unten weiß, für einen quer hängenden Rahmen:
+def test_landscape_is_default_and_not_rotated():
+    # Querformat-Foto, oben schwarz / unten weiß, quer hängender Rahmen: bleibt oben schwarz
+    rows = raw_rows(render(photo(1600, 960, marker=True)))
+    assert rows[10][PANEL_W // 2] == 0
+    assert rows[PANEL_H - 10][PANEL_W // 2] == 1
+
+
+def test_portrait_device_rotates_portrait_photo():
+    # Hochformat-Foto, oben schwarz / unten weiß, hochkant hängender Rahmen:
     # nach 90° Drehung gegen den Uhrzeigersinn liegt Schwarz links, Weiß rechts
-    rows = bmp_indices(render(photo(1600, 1200, marker=True), "landscape"))
+    rows = raw_rows(render(photo(960, 1600, marker=True), "portrait"))
     mid = rows[PANEL_H // 2]
-    assert mid[10] == 0  # schwarz
-    assert mid[PANEL_W - 10] == 1  # weiß
+    assert mid[10] == 0
+    assert mid[PANEL_W - 10] == 1
 
 
 def test_exif_rotation_applied():
-    # Pixel liegen quer (oben schwarz), EXIF 6 = 90° im Uhrzeigersinn drehen -> schwarz rechts
-    rows = bmp_indices(render(photo(1600, 1200, marker=True, exif_orientation=6), "portrait"))
+    # Pixel liegen hochkant (oben schwarz), EXIF 6 = 90° im Uhrzeigersinn drehen -> schwarz rechts
+    rows = raw_rows(render(photo(960, 1600, marker=True, exif_orientation=6)))
     mid = rows[PANEL_H // 2]
     assert mid[PANEL_W - 10] == 0
     assert mid[10] == 1
 
 
 def test_other_orientation_gets_white_border():
-    # Querformat-Foto in Hochformat-Rahmen: eingepasst, oben und unten weißer Rand
-    rows = bmp_indices(render(photo(1600, 1200, (0, 0, 0)), "portrait"))
-    assert set(rows[5]) == {1}
-    assert set(rows[PANEL_H // 2]) == {0}
+    # Hochformat-Foto in Querformat-Rahmen: eingepasst, links und rechts weißer Rand
+    rows = raw_rows(render(photo(1200, 1600, (0, 0, 0))))
+    mid = rows[PANEL_H // 2]
+    assert mid[5] == 1 and mid[PANEL_W - 5] == 1
+    assert mid[PANEL_W // 2] == 0
+
+
+def test_preview_png_from_raw():
+    img = Image.open(io.BytesIO(preview_png(render(photo(1600, 960)))))
+    assert img.size == (PANEL_W, PANEL_H)

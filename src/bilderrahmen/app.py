@@ -22,12 +22,14 @@ from .selection import StateStore, pick_for_day
 
 log = logging.getLogger("bilderrahmen")
 
+# Die Firmware im Ordner firmware/ schickt diese Header bei jedem Abruf mit
 STATUS_HEADERS = {
-    "x-openpaper-battery-millivolts": "battery_mv",
-    "x-openpaper-wifi-rssi": "rssi",
-    "x-openpaper-wakeup": "wakeup",
-    "x-openpaper-firmware-version": "firmware",
+    "x-frame-battery-millivolts": "battery_mv",
+    "x-frame-wifi-rssi": "rssi",
+    "x-frame-wakeup": "wakeup",
+    "x-frame-firmware-version": "firmware",
 }
+SLEEP_HEADER = "X-Sleep-Seconds"
 
 
 def _unauthorized() -> HTTPException:
@@ -83,22 +85,22 @@ def create_app(
             store.save()
         if item is None:
             raise HTTPException(status_code=404, detail="Album ist leer")
-        path = cache_dir / device.id / f"{day.isoformat()}_{item}.bmp"
+        path = cache_dir / device.id / f"{day.isoformat()}_{item}.bin"
         if not path.exists():
-            bmp = render(source.download(device.album, item), device.orientation)
+            raw = render(source.download(device.album, item), device.orientation)
             path.parent.mkdir(parents=True, exist_ok=True)
-            for old in path.parent.glob("*.bmp"):
+            for old in path.parent.glob("*.bin"):
                 old.unlink()
             tmp = path.with_suffix(".tmp")
-            tmp.write_bytes(bmp)
+            tmp.write_bytes(raw)
             tmp.replace(path)
             log.info(json.dumps({"event": "rendered", "device": device.id, "item": item, "day": day.isoformat()}))
         return f'"{day.isoformat()}-{item}"', path
 
-    @app.get("/frame/{device_id}/image.bmp")
+    @app.get("/frame/{device_id}/image.bin")
     def image(device_id: str, request: Request) -> Response:
         device = _check_auth(request, config, device_id)
-        headers = {"X-OpenPaper-Sleep-Seconds": str(sleep_seconds(now(), device.wake, config.timezone))}
+        headers = {SLEEP_HEADER: str(sleep_seconds(now(), device.wake, config.timezone))}
         try:
             etag, path = daily_image(device)
         except HTTPException:
@@ -115,17 +117,7 @@ def create_app(
             record_status(device, request, "not_modified")
             return Response(status_code=304, headers=headers)
         record_status(device, request, "image")
-        return Response(content=path.read_bytes(), media_type="image/bmp", headers=headers)
-
-    @app.get("/frame/{device_id}/settings.json")
-    def settings(device_id: str, request: Request) -> dict:
-        device = _check_auth(request, config, device_id)
-        body: dict = dict(device.settings)
-        if config.public_url:
-            body["downloadUrl"] = f"{config.public_url}/frame/{device.id}/image.bmp"
-        body["httpAuthUser"] = device.id
-        body["httpAuthPassword"] = device.password
-        return body
+        return Response(content=path.read_bytes(), media_type="application/octet-stream", headers=headers)
 
     def require_lan_port(request: Request) -> None:
         # Nur über den LAN-Port erreichbar; cloudflared zeigt ausschließlich auf den Rahmen-Port

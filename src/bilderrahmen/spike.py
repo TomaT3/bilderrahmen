@@ -1,7 +1,7 @@
 """Prüft den Zugriff auf Synology Photos: `python -m bilderrahmen.spike "<Albumname>"`.
 
 Nutzt SYNO_URL, SYNO_USER, SYNO_PASSWORD (und optional SYNO_VERIFY_TLS=false). Listet das Album, lädt das erste
-Foto, rechnet es um und legt Original, BMP und Vorschau im aktuellen Ordner ab.
+Foto, rechnet es um und legt Original, Panelpuffer und Vorschau im aktuellen Ordner ab.
 """
 
 from __future__ import annotations
@@ -27,11 +27,11 @@ def main() -> int:
         return 1
     original = photos.download(album, items[0])
     print(f"Foto {items[0]}: {len(original)} Bytes geladen")
-    bmp = render(original)
+    raw = render(original)
     Path("spike_original.bin").write_bytes(original)
-    Path("spike.bmp").write_bytes(bmp)
-    Path("spike_preview.png").write_bytes(preview_png(bmp))
-    print("Geschrieben: spike_original.bin, spike.bmp, spike_preview.png")
+    Path("spike_panel.bin").write_bytes(raw)
+    Path("spike_preview.png").write_bytes(preview_png(raw))
+    print("Geschrieben: spike_original.bin, spike_panel.bin, spike_preview.png")
     return 0
 
 

@@ -1,7 +1,7 @@
 [project]
 name = "bilderrahmen"
 version = "0.1.0"
-description = "Liefert pro E-Ink-Rahmen (OpenPaper L) täglich ein zufälliges Foto aus einem Synology-Photos-Album."
+description = "Liefert pro E-Ink-Rahmen (Waveshare ESP32-S3-PhotoPainter) täglich ein zufälliges Foto aus einem Synology-Photos-Album."
 requires-python = ">=3.13"
 dependencies = [
     "fastapi==0.165.0",

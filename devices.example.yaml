@@ -5,7 +5,5 @@ timezone: Europe/Berlin
 devices:
   - id: oma-opa                 # a-z, 0-9, "-"; erscheint in der URL
     album: Rahmen Oma+Opa       # Albumname in Synology Photos (eigenes oder mit dem Benutzer geteiltes Album)
-    orientation: landscape      # landscape = Rahmen hängt quer, portrait = hochkant
+    orientation: landscape      # landscape (Standard) = Rahmen steht quer, portrait = hochkant
     wake: "06:00"               # Uhrzeit (Europe/Berlin), zu der das neue Bild kommt
-    # settings:                 # optionale weitere Felder für settings.json der Firmware
-    #   autoRotation: false

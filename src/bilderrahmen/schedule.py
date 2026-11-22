@@ -1,4 +1,4 @@
-"""Aufwachzeit des Rahmens berechnen (Header X-OpenPaper-Sleep-Seconds)."""
+"""Aufwachzeit des Rahmens berechnen (Header X-Sleep-Seconds)."""
 
 from __future__ import annotations
 
